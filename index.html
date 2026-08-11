@@ -122,6 +122,10 @@
     #objective{max-width:100%;text-align:left;margin-left:0;flex-basis:100%}
     #hint{display:none}
     .page{padding:26px 22px 24px}
+    button.act{font-size:15px;padding:12px 14px;min-height:46px}
+    button.act small{font-size:12px}
+    #topbar{font-size:15px;gap:16px}
+    #log{font-size:13.5px;max-width:88vw}
   }
   @media (prefers-reduced-motion: reduce){ .noanim{display:none} }
 </style>
@@ -160,8 +164,13 @@
 const W = 1000, H = 620;                    // logical world size
 const cv = document.getElementById('cv');
 const ctx = cv.getContext('2d');
-let scale = 1, offX = 0, offY = 0;
+let scale = 1, offX = 0, offY = 0, cssScale = 1;
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/* sprites grow on small screens so they stay finger-sized */
+function spriteScale(){ return clamp(0.72/cssScale, 1, 1.9); }
+/* convert a touch radius in CSS px to world units */
+function touchR(px){ return px/cssScale; }
 
 function fit(){
   const wrap = document.getElementById('canvasWrap');
@@ -170,6 +179,7 @@ function fit(){
   cv.height = r.height * devicePixelRatio;
   const s = Math.min(r.width / W, r.height / H);
   scale = s * devicePixelRatio;
+  cssScale = s;
   offX = (cv.width - W*scale)/2;
   offY = (cv.height - H*scale)/2;
 }
@@ -781,19 +791,21 @@ cv.addEventListener('pointerdown', e=>{
 });
 function landTap(x,y){
   const p={x,y};
-  // unit?
-  const u = G.units.find(u=>dist(u,p)<18);
-  if(u){ G.selected = (G.selected===u)? null : u; refreshSel(); return; }
-  // resource?
-  const n = G.nodes.find(n=>dist(n,p)<30);
-  if(n){ assignGather(n); refreshSel(); return; }
+  const uR = Math.max(18*spriteScale(), touchR(24));   // finger-sized in screen px
+  const nR = Math.max(30*spriteScale(), touchR(30));
+  // gather all candidates within reach, pick the closest
+  const cands=[];
+  for(const u of G.units){ const d=dist(u,p); if(d<uR) cands.push({d, hit:()=>{G.selected=(G.selected===u)?null:u; refreshSel();}}); }
+  for(const n of G.nodes){ const d=dist(n,p); if(d<nR) cands.push({d:d+4, hit:()=>{assignGather(n); refreshSel();}}); }
+  if(cands.length){ cands.sort((a,b)=>a.d-b.d)[0].hit(); return; }
   // move selected
   if(G.selected){ G.selected.task=null; G.selected.tx=x; G.selected.ty=y; }
 }
 function seaTap(x,y){
   const p={x,y};
   const t = G.moby || G.sea.whale;
-  if(t && dist(t,p)<70){ lowerBoats(); return; }
+  const r = Math.max(t && G.moby ? 100 : 75, touchR(44));
+  if(t && dist(t,p)<r){ lowerBoats(); return; }
 }
 function refreshSel(){
   $('selinfo').textContent = G.selected
@@ -845,7 +857,7 @@ function drawLand(){
 
   // resource nodes
   for(const n of G.nodes){
-    ctx.save(); ctx.translate(n.x,n.y);
+    ctx.save(); ctx.translate(n.x,n.y); ctx.scale(spriteScale(),spriteScale());
     if(n.kind==='wood') drawTree();
     else if(n.kind==='food') drawFishRack();
     else drawGoldCrates();
@@ -870,7 +882,8 @@ function drawLand(){
 }
 
 function label(text,x,y,color){
-  ctx.font='11px Palatino Linotype, Georgia, serif';
+  const fs = Math.round(11*Math.min(spriteScale(),1.6));
+  ctx.font=fs+'px Palatino Linotype, Georgia, serif';
   ctx.textAlign='center';
   ctx.fillStyle=color||'rgba(233,220,192,.75)';
   ctx.fillText(text,x,y);
@@ -929,8 +942,10 @@ function drawBuilding(key,s){
   label(s.name,0,h/2+14,'rgba(233,220,192,.85)');
 }
 function drawUnit(u){
+  const sp = spriteScale();
   ctx.save(); ctx.translate(u.x, u.y + Math.sin(G.t*4+u.bob)*(reduceMotion?0:1));
-  if(G.selected===u){ ctx.strokeStyle='#c9a24b'; ctx.beginPath(); ctx.arc(0,4,14,0,7); ctx.stroke(); }
+  ctx.scale(sp,sp);
+  if(G.selected===u){ ctx.strokeStyle='#c9a24b'; ctx.lineWidth=1.5; ctx.beginPath(); ctx.arc(0,4,14,0,7); ctx.stroke(); ctx.lineWidth=1; }
   // body
   ctx.fillStyle = u.type==='harpooneer' ? '#8e2a1e' : '#33506b';
   ctx.beginPath(); ctx.ellipse(0,4,7,10,0,0,7); ctx.fill();
@@ -998,6 +1013,7 @@ function drawSea(){
     if(b.state==='sunk') continue;
     if(b.state==='aboard'){ continue; }
     ctx.save(); ctx.translate(b.x, b.y + (reduceMotion?0:Math.sin(G.t*3+b.id)*2));
+    ctx.scale(spriteScale(),spriteScale());
     ctx.fillStyle='#57431f';
     ctx.beginPath(); ctx.moveTo(-20,0); ctx.quadraticCurveTo(0,8,20,0); ctx.quadraticCurveTo(0,-6,-20,0); ctx.fill();
     // tiny crew
@@ -1021,7 +1037,7 @@ function drawWhale(w, color, isMoby){
   const submerged = isMoby && w.diveT>0;
   ctx.save(); ctx.translate(w.x, w.y + (reduceMotion?0:Math.sin(G.t*1.5)*3));
   ctx.globalAlpha = submerged? .25 : 1;
-  const s = isMoby? 1.5 : 1;
+  const s = (isMoby? 1.5 : 1) * spriteScale();
   ctx.scale(s,s);
   // body
   ctx.fillStyle=color;
@@ -1061,8 +1077,9 @@ function drawWhale(w, color, isMoby){
   drawBar(w.x-bw/2, w.y - (isMoby?58:40), bw, Math.max(0,w.hp/w.max), isMoby? '#e8e2d2':'#7fa3b8', isMoby? 'MOBY DICK':null);
 }
 function drawBar(x,y,w,frac,color,txt){
-  ctx.fillStyle='rgba(0,0,0,.55)'; ctx.fillRect(x,y,w,6);
-  ctx.fillStyle=color; ctx.fillRect(x+1,y+1,(w-2)*clamp(frac,0,1),4);
+  const h = Math.round(6*Math.min(spriteScale(),1.6));
+  ctx.fillStyle='rgba(0,0,0,.55)'; ctx.fillRect(x,y,w,h);
+  ctx.fillStyle=color; ctx.fillRect(x+1,y+1,(w-2)*clamp(frac,0,1),h-2);
   if(txt){ label(txt, x+w/2, y-4, 'rgba(233,220,192,.85)'); }
 }
 
