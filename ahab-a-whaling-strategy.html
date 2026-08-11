@@ -1,0 +1,1091 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>AHAB — A Whaling Strategy in Six Chapters</title>
+<style>
+  :root{
+    --ink:#0d1b24;          /* night sea */
+    --deep:#122633;
+    --parch:#e9dcc0;        /* whale-oil parchment */
+    --bone:#f6efdd;         /* scrimshaw bone */
+    --blood:#8e2a1e;        /* harpoon red */
+    --gold:#c9a24b;         /* the doubloon */
+    --rope:#7a5c38;
+    --faint:#b7a888;
+    --serif:"Palatino Linotype","Book Antiqua","Iowan Old Style",Georgia,serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%;overflow:hidden;background:var(--ink);font-family:var(--serif);color:var(--parch)}
+  #stage{position:fixed;inset:0;display:flex;flex-direction:column}
+  canvas{display:block;width:100%;height:100%;touch-action:none;cursor:crosshair}
+  #canvasWrap{position:relative;flex:1;min-height:0}
+
+  /* ---------- top bar ---------- */
+  #topbar{
+    display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+    padding:7px 12px;background:linear-gradient(#20160d,#170f08);
+    border-bottom:2px solid #000;box-shadow:0 2px 8px rgba(0,0,0,.6);
+    font-size:14px;user-select:none;z-index:5;
+  }
+  .res{display:flex;align-items:center;gap:5px;color:var(--bone);letter-spacing:.3px}
+  .res b{font-variant-numeric:tabular-nums;min-width:2.2ch;text-align:right}
+  .res .ic{font-size:15px;filter:saturate(.7)}
+  #objective{
+    margin-left:auto;font-style:italic;color:var(--faint);font-size:13px;
+    max-width:52%;text-align:right;line-height:1.25;
+  }
+  #doubloon{
+    width:22px;height:22px;border-radius:50%;
+    background:radial-gradient(circle at 35% 32%, #f0d68a, #c9a24b 55%, #7c5c1e);
+    border:1px solid #3c2c0c;box-shadow:0 0 6px rgba(201,162,75,.5);
+    display:inline-block;vertical-align:middle;
+  }
+
+  /* ---------- action bar ---------- */
+  #actionbar{
+    display:flex;gap:8px;flex-wrap:wrap;align-items:center;
+    padding:8px 10px calc(8px + env(safe-area-inset-bottom));
+    background:linear-gradient(#170f08,#0d0803);border-top:2px solid #000;z-index:5;
+    min-height:52px;
+  }
+  button.act{
+    font-family:var(--serif);font-size:13.5px;letter-spacing:.3px;
+    color:var(--bone);background:linear-gradient(#3a2a19,#241708);
+    border:1px solid #59452a;border-radius:3px;padding:8px 12px;cursor:pointer;
+    box-shadow:0 1px 0 rgba(255,255,255,.06) inset,0 2px 4px rgba(0,0,0,.5);
+  }
+  button.act:hover:not(:disabled){background:linear-gradient(#4a3722,#2e1e0c);border-color:var(--gold)}
+  button.act:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+  button.act:disabled{opacity:.42;cursor:not-allowed}
+  button.act.red{background:linear-gradient(#5c1d14,#3a0f09);border-color:#8e2a1e}
+  button.act.red:hover:not(:disabled){border-color:#d0553f}
+  button.act small{display:block;color:var(--faint);font-size:11px;font-style:italic}
+  #hint{font-size:12px;color:var(--faint);font-style:italic;margin-left:auto;max-width:38%;text-align:right;line-height:1.3}
+
+  /* ---------- ship log ---------- */
+  #log{
+    position:absolute;left:10px;bottom:10px;z-index:4;pointer-events:none;
+    font-size:12.5px;line-height:1.45;text-shadow:0 1px 2px #000;max-width:min(62vw,430px);
+  }
+  #log div{opacity:.92;color:var(--parch)}
+  #log div:nth-last-child(n+3){opacity:.55}
+  #log em{color:var(--gold);font-style:normal}
+
+  /* ---------- overlays as book pages ---------- */
+  #overlay{
+    position:absolute;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;
+    background:rgba(5,10,15,.82);padding:18px;overflow:auto;
+  }
+  #overlay.hidden{display:none}
+  .page{
+    background:
+      radial-gradient(ellipse at 20% 8%, rgba(255,255,255,.5), transparent 40%),
+      linear-gradient(105deg, #efe4c8, #e4d5b2 55%, #d9c7a0);
+    color:#2a2015;max-width:640px;width:100%;
+    border:1px solid #a08a5e;border-radius:2px;
+    box-shadow:0 0 0 6px rgba(0,0,0,.35), 0 22px 60px rgba(0,0,0,.7);
+    padding:34px 38px 30px;position:relative;
+  }
+  .page::before,.page::after{content:"";position:absolute;top:8px;bottom:8px;width:1px;background:rgba(122,92,56,.35)}
+  .page::before{left:14px}.page::after{right:14px}
+  .eyebrow{font-size:12px;letter-spacing:.32em;text-transform:uppercase;color:#8e2a1e;text-align:center;margin-bottom:6px}
+  .page h1{font-size:clamp(26px,5vw,40px);text-align:center;letter-spacing:.06em;font-weight:700;color:#241a0e;margin-bottom:4px}
+  .page h2{font-size:clamp(19px,4vw,26px);text-align:center;letter-spacing:.12em;font-weight:700;color:#241a0e;margin-bottom:10px}
+  .whale-rule{display:flex;align-items:center;gap:10px;margin:12px 0 16px;color:#7a5c38}
+  .whale-rule::before,.whale-rule::after{content:"";flex:1;height:1px;background:#a08a5e}
+  .whale-rule svg{flex:0 0 auto}
+  .quote{font-style:italic;text-align:center;font-size:15.5px;line-height:1.55;color:#40331f;margin-bottom:14px}
+  .quote .att{display:block;font-style:normal;font-size:12px;letter-spacing:.18em;color:#8e6f3f;margin-top:6px;text-transform:uppercase}
+  .objectives{margin:0 auto 18px;max-width:460px;font-size:14.5px;line-height:1.7;color:#33281a}
+  .objectives li{list-style:none;padding-left:22px;position:relative}
+  .objectives li::before{content:"⚓";position:absolute;left:0;font-size:12px;color:#8e2a1e}
+  .page .btnrow{display:flex;justify-content:center;gap:12px;flex-wrap:wrap}
+  .page button{
+    font-family:var(--serif);font-size:16px;letter-spacing:.14em;text-transform:uppercase;
+    background:#241a0e;color:var(--bone);border:1px solid #8e6f3f;border-radius:2px;
+    padding:11px 26px;cursor:pointer;
+  }
+  .page button:hover{background:#3a2a19;border-color:var(--gold)}
+  .page button:focus-visible{outline:2px solid #8e2a1e;outline-offset:2px}
+  .page p.body{font-size:14.5px;line-height:1.65;color:#33281a;margin-bottom:12px;text-align:justify}
+  .page p.body:first-letter{font-size:2.6em;line-height:.8;float:left;padding:4px 6px 0 0;color:#8e2a1e;font-weight:700}
+  .small-note{font-size:12px;color:#8e6f3f;text-align:center;margin-top:14px;font-style:italic}
+
+  /* selection ring in DOM tooltip */
+  #selinfo{
+    position:absolute;top:8px;left:10px;z-index:4;pointer-events:none;
+    font-size:12.5px;color:var(--bone);text-shadow:0 1px 2px #000;font-style:italic;
+  }
+  @media (max-width:640px){
+    #objective{max-width:100%;text-align:left;margin-left:0;flex-basis:100%}
+    #hint{display:none}
+    .page{padding:26px 22px 24px}
+  }
+  @media (prefers-reduced-motion: reduce){ .noanim{display:none} }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="topbar">
+    <span class="res"><span class="ic">🪵</span><b id="rWood">0</b></span>
+    <span class="res"><span class="ic">🍖</span><b id="rFood">0</b></span>
+    <span class="res"><span id="doubloon"></span><b id="rGold">0</b></span>
+    <span class="res" id="oilBox" style="display:none"><span class="ic">🛢️</span><b id="rOil">0</b></span>
+    <span class="res" id="crewBox"><span class="ic">👥</span><b id="rCrew">0</b></span>
+    <span id="objective"></span>
+  </div>
+
+  <div id="canvasWrap">
+    <canvas id="cv"></canvas>
+    <div id="selinfo"></div>
+    <div id="log"></div>
+    <div id="overlay" class="hidden"></div>
+  </div>
+
+  <div id="actionbar"></div>
+</div>
+
+<script>
+"use strict";
+/* =====================================================================
+   AHAB — a whaling strategy in six chapters
+   Land phase: gather wood / provisions / gold in New Bedford, raise the
+   Spouter-Inn, sign harpooneers, provision the Pequod.
+   Sea phase: lower the boats, hunt sperm whales for oil, then the
+   three-day chase of the White Whale.
+   ===================================================================== */
+
+const W = 1000, H = 620;                    // logical world size
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+let scale = 1, offX = 0, offY = 0;
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+function fit(){
+  const wrap = document.getElementById('canvasWrap');
+  const r = wrap.getBoundingClientRect();
+  cv.width = r.width * devicePixelRatio;
+  cv.height = r.height * devicePixelRatio;
+  const s = Math.min(r.width / W, r.height / H);
+  scale = s * devicePixelRatio;
+  offX = (cv.width - W*scale)/2;
+  offY = (cv.height - H*scale)/2;
+}
+addEventListener('resize', fit);
+
+/* ------------------------------------------------ state ------------ */
+const G = {
+  scene:'title', chapter:0, t:0,
+  res:{wood:0, food:0, gold:0, oil:0},
+  units:[], nodes:[], selected:null,
+  sites:{}, built:{},
+  crew:{queequeg:false, tashtego:false, daggoo:false},
+  sermonHeard:false, harpoonLvl:0, sharpenDay:false,
+  provision:{wood:0, food:0, gold:0},
+  provReq:{wood:140, food:120, gold:70},
+  sailorCap:8,
+  sea:{whalesKilled:0, whale:null, boats:[], spoutT:0, squallT:18, waves:[]},
+  ship:{hp:320, max:320},
+  moby:null, day:0, interlude:false,
+  log:[], msgId:0,
+};
+
+const NAMES = ["Ishmael","Bulkington","Pip","Dough-Boy","Perth","Fedallah","Archy","Cabaco"];
+let nameIdx = 0;
+
+/* ------------------------------------------------ chapters --------- */
+const CHAPTERS = [
+ null,
+ { n:"Chapter I", t:"LOOMINGS",
+   q:"“Call me Ishmael. Some years ago—never mind how long precisely—having little or no money in my purse … I thought I would sail about a little and see the watery part of the world.”",
+   obj:["Tap a resource, and the nearest idle sailor will work it","Gather 100 wood and 60 provisions","Gold crates wait by the wharf — you will need coin soon"],
+   body:null },
+ { n:"Chapter II", t:"THE SPOUTER-INN",
+   q:"“Better sleep with a sober cannibal than a drunken Christian.”",
+   obj:["Raise the Spouter-Inn (80 wood)","Sign Queequeg, prince of harpooneers (40 gold, 30 provisions)","Hire extra sailors at the Inn to speed the work (25 provisions)"],
+   body:null },
+ { n:"Chapter III", t:"THE SHIP",
+   q:"“She was a ship of the old school, rather small if anything … A noble craft, but somehow a most melancholy! All noble things are touched with that.”",
+   obj:["Raise the Shipyard (80 wood, 30 gold)","Provision the Pequod: 140 wood, 120 provisions, 70 gold","Load stores at the Shipyard whenever your stockpile allows"],
+   body:null },
+ { n:"Chapter IV", t:"THE QUARTER-DECK",
+   q:"“Whosoever of ye raises me a white-headed whale with a wrinkled brow and a crooked jaw … he shall have this gold ounce, my boys!”",
+   obj:["Sign Tashtego and Daggoo at the Inn","Raise the Smithy and forge barbed harpoons","Optional: raise the Chapel — Father Mapple's sermon steels the boats (+hull)","Then nail the doubloon to the mast, and sail"],
+   body:null },
+ { n:"Chapter V", t:"THE FIRST LOWERING",
+   q:"“There she blows! there! there! there! she blows! she blows!”",
+   obj:["Tap a whale to lower the boats","Take 3 sperm whales — each yields oil","Spend oil on repairs; beware the squalls","Oil will be your only currency against the White Whale"],
+   body:null },
+ { n:"Chapter VI", t:"THE CHASE — THREE DAYS",
+   q:"“Towards thee I roll, thou all-destroying but unconquering whale; to the last I grapple with thee; from hell's heart I stab at thee.”",
+   obj:["Moby Dick must be fought over three days","He sounds when wounded deep — repair between days","He will ram the Pequod while your boats are among the waves","If the ship goes down, so ends the voyage"],
+   body:null },
+];
+
+/* ------------------------------------------------ helpers ---------- */
+const $ = id => document.getElementById(id);
+const dist = (a,b)=>Math.hypot(a.x-b.x, a.y-b.y);
+const rnd = (a,b)=>a + Math.random()*(b-a);
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+
+function say(msg, gold){
+  G.log.push({msg, gold});
+  if(G.log.length>4) G.log.shift();
+  $('log').innerHTML = G.log.map(l=>`<div>${l.gold?'<em>'+l.msg+'</em>':l.msg}</div>`).join('');
+}
+
+/* ------------------------------------------------ land setup ------- */
+function setupLand(){
+  G.nodes = [
+    {id:'t1', kind:'wood', x:120, y:150, amt:9999, label:'Timber'},
+    {id:'t2', kind:'wood', x:190, y:120, amt:9999, label:'Timber'},
+    {id:'t3', kind:'wood', x:250, y:170, amt:9999, label:'Timber'},
+    {id:'t4', kind:'wood', x:160, y:210, amt:9999, label:'Timber'},
+    {id:'f1', kind:'food', x:700, y:290, amt:9999, label:'Drying racks'},
+    {id:'f2', kind:'food', x:775, y:265, amt:9999, label:'Salt cod'},
+    {id:'f3', kind:'food', x:850, y:295, amt:9999, label:'Chowder pots'},
+    {id:'g1', kind:'gold', x:880, y:420, amt:9999, label:'Cargo trade'},
+    {id:'g2', kind:'gold', x:930, y:380, amt:9999, label:'Cargo trade'},
+  ];
+  G.sites = {
+    inn:      {x:300, y:255, w:120, h:78, name:'Spouter-Inn',  cost:{wood:80}},
+    chapel:   {x:150, y:320, w:100, h:80, name:'Whaleman\u2019s Chapel', cost:{wood:50, gold:20}},
+    smithy:   {x:455, y:230, w:104, h:70, name:'Smithy',       cost:{wood:70, gold:30}},
+    shipyard: {x:600, y:400, w:150, h:80, name:'Shipyard',     cost:{wood:80, gold:30}},
+  };
+  G.stock = {x:470, y:360};   // wharf stores — deposit point
+  G.units = [];
+  for(let i=0;i<3;i++) addUnit('sailor');
+}
+function addUnit(type, key){
+  const u = {
+    id:Math.random().toString(36).slice(2),
+    type, key: key||null,
+    name: type==='sailor' ? NAMES[(nameIdx++)%NAMES.length] :
+          key.charAt(0).toUpperCase()+key.slice(1),
+    x:G.stock.x + rnd(-40,40), y:G.stock.y + rnd(10,50),
+    tx:null, ty:null, speed: type==='sailor'? 78 : 70,
+    task:null, carry:0, gatherT:0, bob:Math.random()*6,
+  };
+  G.units.push(u);
+  return u;
+}
+const sailors = ()=>G.units.filter(u=>u.type==='sailor');
+const harpooneers = ()=>G.units.filter(u=>u.type==='harpooneer');
+
+/* ------------------------------------------------ land update ------ */
+function updateLand(dt){
+  for(const u of G.units){
+    // movement toward target
+    const goal = u.task
+      ? (u.task.phase==='return' ? G.stock : {x:u.task.node.x, y:u.task.node.y})
+      : (u.tx!=null ? {x:u.tx, y:u.ty} : null);
+    if(goal){
+      const d = dist(u, goal);
+      if(d > 6){
+        u.x += (goal.x-u.x)/d * u.speed * dt;
+        u.y += (goal.y-u.y)/d * u.speed * dt;
+      } else if(u.task){
+        if(u.task.phase==='toNode'){ u.task.phase='gather'; u.gatherT=0; }
+        else if(u.task.phase==='return'){
+          G.res[u.task.node.kind] += u.carry;
+          u.carry = 0; u.task.phase='toNode';
+          checkLandProgress();
+        }
+      } else { u.tx=u.ty=null; }
+    }
+    if(u.task && u.task.phase==='gather'){
+      u.gatherT += dt;
+      const rate = u.task.node.kind==='gold' ? 2.1 : 1.6;
+      if(u.gatherT >= rate){
+        u.carry = u.task.node.kind==='gold' ? 10 : 14;
+        u.task.phase = 'return';
+      }
+    }
+  }
+}
+function assignGather(node){
+  let u = G.selected && G.selected.type==='sailor' ? G.selected : null;
+  if(!u){
+    // nearest idle sailor, else nearest sailor at all
+    const idle = sailors().filter(s=>!s.task);
+    const pool = idle.length? idle : sailors();
+    u = pool.sort((a,b)=>dist(a,node)-dist(b,node))[0];
+  }
+  if(!u){ say("No sailors to send."); return; }
+  u.task = {node, phase:'toNode'}; u.tx=u.ty=null;
+  say(`${u.name} works the ${node.label.toLowerCase()}.`);
+}
+
+function canAfford(cost){ return Object.entries(cost).every(([k,v])=>G.res[k]>=v); }
+function pay(cost){ for(const [k,v] of Object.entries(cost)) G.res[k]-=v; }
+function costStr(cost){
+  const ic={wood:'🪵',food:'🍖',gold:'🟡',oil:'🛢️'};
+  return Object.entries(cost).map(([k,v])=>`${v}${ic[k]}`).join(' ');
+}
+
+function build(key){
+  const s = G.sites[key];
+  if(G.built[key] || !canAfford(s.cost)) return;
+  pay(s.cost); G.built[key]=true;
+  say(`The ${s.name} stands.`, true);
+  if(key==='inn') say("Landlord Coffin lights the lamps. Harpooneers may be signed here.");
+  checkLandProgress(); renderActions();
+}
+function hireHarpooneer(key){
+  const costs = {queequeg:{gold:40,food:30}, tashtego:{gold:35,food:25}, daggoo:{gold:35,food:25}};
+  if(G.crew[key] || !canAfford(costs[key])) return;
+  pay(costs[key]); G.crew[key]=true; addUnit('harpooneer', key);
+  const lines = {
+    queequeg:"Queequeg signs the articles — his mark, an infinity. His harpoon never misses.",
+    tashtego:"Tashtego of Gay Head, unmixed Indian blood, joins the crew.",
+    daggoo:"Daggoo, gigantic and coal-black, ships aboard — a lion of a harpooneer.",
+  };
+  say(lines[key], true); checkLandProgress(); renderActions();
+}
+function hireSailor(){
+  if(sailors().length >= G.sailorCap || !canAfford({food:25})) return;
+  pay({food:25}); const u = addUnit('sailor');
+  say(`${u.name} ships aboard for the lay.`); renderActions();
+}
+function loadProvisions(){
+  let moved=false;
+  for(const k of ['wood','food','gold']){
+    const need = G.provReq[k]-G.provision[k];
+    const give = Math.min(need, G.res[k]);
+    if(give>0){ G.res[k]-=give; G.provision[k]+=give; moved=true; }
+  }
+  if(moved) say("Stores swayed aboard the Pequod: casks, cables, beef and bread.");
+  checkLandProgress(); renderActions();
+}
+function forge(){
+  const cost = G.harpoonLvl===0 ? {gold:30} : {gold:50};
+  if(G.harpoonLvl>=2 || !canAfford(cost)) return;
+  pay(cost); G.harpoonLvl++;
+  say(G.harpoonLvl===1 ? "Perth hammers out barbed harpoons, keen as razors." :
+                         "Ahab's own harpoon — tempered, he mutters, in pagan blood.", true);
+  checkLandProgress(); renderActions();
+}
+function hearSermon(){
+  if(G.sermonHeard) return;
+  G.sermonHeard = true;
+  say("Father Mapple preaches Jonah from the prow-shaped pulpit. The crew stands steadier. (+boat hull)", true);
+  renderActions();
+}
+
+function provDone(){ return ['wood','food','gold'].every(k=>G.provision[k]>=G.provReq[k]); }
+
+function checkLandProgress(){
+  updateHUD();
+  if(G.chapter===1 && G.res.wood>=100 && G.res.food>=60) openChapter(2);
+  else if(G.chapter===2 && G.built.inn && G.crew.queequeg) openChapter(3);
+  else if(G.chapter===3 && G.built.shipyard && provDone()) openChapter(4);
+  // chapter 4 completes via the Set Sail button
+}
+function ch4Ready(){
+  return G.crew.queequeg && G.crew.tashtego && G.crew.daggoo && G.harpoonLvl>=1 && provDone();
+}
+
+/* ------------------------------------------------ sea setup -------- */
+function setupSea(){
+  G.scene='sea';
+  $('oilBox').style.display='';
+  G.sea.whalesKilled=0; G.sea.whale=null; G.sea.squallT=rnd(20,30);
+  G.sea.waves = Array.from({length:26},()=>({x:rnd(0,W), y:rnd(60,H-40), p:Math.random()*6}));
+  const boatCount = 3;
+  const hull = 50 * (G.sermonHeard?1.25:1);
+  G.sea.boats = [];
+  const hn = ['queequeg','tashtego','daggoo'];
+  for(let i=0;i<boatCount;i++){
+    G.sea.boats.push({
+      id:i, hp:hull, max:hull, x:170, y:250+i*55, home:{x:170,y:250+i*55},
+      state:'aboard', hitT:rnd(0,1), harpooneer:hn[i],
+      mate:['Starbuck','Stubb','Flask'][i],
+    });
+  }
+  spawnWhale();
+}
+function boatDps(){ return 5 + 4*G.harpoonLvl + (G.sharpenDay?3:0); }
+function spawnWhale(){
+  G.sea.whale = {x:W+60, y:rnd(140,470), hp:260, max:260, atkT:2.8, spout:0, drift:rnd(14,20)};
+  say("From the mast-head: “There she blows!—there she blows! A hump like a snow-hill!”", true);
+}
+function lowerBoats(){
+  let n=0;
+  for(const b of G.sea.boats) if(b.state==='aboard'||b.state==='returning'){ b.state='rowing'; n++; }
+  if(n) say("“Lower away, and after him!” The boats splash down.");
+}
+function recallBoats(){
+  for(const b of G.sea.boats) if(b.state!=='aboard') b.state='returning';
+  say("The signal flies: boats return to the ship.");
+}
+
+function updateSea(dt){
+  const target = G.moby || G.sea.whale;
+  // waves drift
+  for(const w of G.sea.waves){ w.x -= 12*dt; if(w.x<-20){w.x=W+20; w.y=rnd(60,H-40);} }
+
+  // whale behavior
+  if(G.sea.whale){
+    const w = G.sea.whale;
+    w.x -= w.drift*dt*0.4;
+    w.spout += dt;
+    if(w.x < 240) w.x = 240;
+  }
+  if(G.moby && !G.interlude){
+    const m = G.moby;
+    m.spout += dt;
+    if(m.diveT>0){ m.diveT-=dt; }
+    else {
+      m.x += Math.sin(G.t*0.5)*20*dt; m.y += Math.cos(G.t*0.33)*26*dt;
+      m.x=clamp(m.x,330,W-80); m.y=clamp(m.y,120,H-90);
+      // ram the ship
+      m.ramT -= dt;
+      if(m.ramT<=0){
+        m.ramT = rnd(12,16);
+        const dmg = Math.round(rnd(35,60) * (1+0.15*(G.day-1)));
+        G.ship.hp -= dmg;
+        say(`The White Whale turns and rams the Pequod! (−${dmg} hull)`);
+        if(G.ship.hp<=0) return defeat('ship');
+      }
+      // periodic dive
+      m.nextDive -= dt;
+      if(m.nextDive<=0){ m.diveT=4; m.nextDive=rnd(11,15); say("He sounds! The line whistles out — wait for him to rise."); }
+    }
+  }
+
+  // boats
+  let engaged=0;
+  for(const b of G.sea.boats){
+    if(b.state==='sunk') continue;
+    if(b.state==='rowing' && target){
+      const gx=target.x-46, gy=target.y + (b.id-1)*34;
+      const d=Math.hypot(gx-b.x, gy-b.y);
+      if(d>10){ b.x+=(gx-b.x)/d*60*dt; b.y+=(gy-b.y)/d*60*dt; }
+      else b.state='fighting';
+    } else if(b.state==='fighting' && target){
+      engaged++;
+      const vulnerable = !(G.moby && G.moby.diveT>0);
+      if(vulnerable){
+        target.hp -= boatDps()*dt;
+      }
+      // keep close
+      const gx=target.x-46, gy=target.y+(b.id-1)*34;
+      b.x += (gx-b.x)*dt*1.5; b.y += (gy-b.y)*dt*1.5;
+    } else if(b.state==='returning' || (b.state==='fighting' && !target) || (b.state==='rowing' && !target)){
+      const d=dist(b,b.home);
+      if(d>8){ b.x+=(b.home.x-b.x)/d*70*dt; b.y+=(b.home.y-b.y)/d*70*dt; }
+      else b.state='aboard';
+    }
+  }
+
+  // whale strikes back
+  if(target && engaged>0 && !(G.moby&&G.moby.diveT>0)){
+    target.atkT -= dt;
+    if(target.atkT<=0){
+      target.atkT = G.moby ? 2.2 - 0.25*(G.day-1) : 2.8;
+      const live = G.sea.boats.filter(b=>b.state==='fighting');
+      if(live.length){
+        const b = live[Math.floor(Math.random()*live.length)];
+        const dmg = Math.round(G.moby ? rnd(16,26)*(1+0.1*(G.day-1)) : rnd(7,13));
+        b.hp -= dmg;
+        if(b.hp<=0){
+          b.state='sunk'; b.hp=0;
+          say(`${b.mate}'s boat is stove and splintered! The crew swims for the ship.`);
+          if(G.sea.boats.every(x=>x.state==='sunk')){
+            if(G.moby) return defeat('boats');
+            else { say("All boats stove. The carpenter builds anew… (boats restored)"); for(const x of G.sea.boats){x.state='aboard';x.hp=x.max*0.6;x.x=x.home.x;x.y=x.home.y;} }
+          }
+        }
+      }
+    }
+  }
+
+  // squalls during whale hunts
+  if(!G.moby){
+    G.sea.squallT -= dt;
+    if(G.sea.squallT<=0){
+      G.sea.squallT = rnd(24,36);
+      const out = G.sea.boats.filter(b=>b.state==='rowing'||b.state==='fighting');
+      if(out.length){
+        for(const b of out) b.hp = Math.max(4, b.hp - rnd(6,12));
+        say("A squall bursts over the boats — drenched, chilled, and battered!");
+      }
+    }
+  }
+
+  // whale death
+  if(G.sea.whale && G.sea.whale.hp<=0){
+    G.sea.whale=null; G.sea.whalesKilled++;
+    G.res.oil += 80;
+    say(`The whale turns fin out — dead. Tried out for <b>80 oil</b>. (${G.sea.whalesKilled}/3)`, true);
+    for(const b of G.sea.boats) if(b.state!=='sunk') b.state='returning';
+    if(G.sea.whalesKilled>=3){ setTimeout(()=>openChapter(6), 1200); }
+    else setTimeout(()=>{ if(G.scene==='sea' && !G.moby) spawnWhale(); }, 4000);
+  }
+
+  // moby day end
+  if(G.moby && G.moby.hp<=0){
+    if(G.day<3){
+      G.interlude = true;
+      for(const b of G.sea.boats) if(b.state!=='sunk') b.state='returning';
+      interludePage();
+    } else {
+      victory();
+    }
+  }
+}
+
+function startDay(day){
+  G.day = day; G.interlude=false; G.sharpenDay=false;
+  const hp = 240 + 30*(day-1);
+  G.moby = {x:W-160, y:H/2, hp, max:hp, atkT:2.2, spout:0, ramT:rnd(8,12), diveT:0, nextDive:rnd(9,13)};
+  G.sea.whale = null;
+  say(`— THE CHASE, DAY ${['','FIRST','SECOND','THIRD'][day]} — “There she blows!—there she blows! … It is Moby Dick!”`, true);
+}
+
+/* repairs (oil economy) */
+function repairBoats(){
+  if(G.res.oil<25) return;
+  G.res.oil-=25;
+  for(const b of G.sea.boats){
+    if(b.state==='sunk'){ b.state='aboard'; b.x=b.home.x; b.y=b.home.y; b.hp=b.max*0.7; }
+    else b.hp=b.max;
+  }
+  say("The carpenter patches planks; stove boats made whole again.");
+  renderActions();
+}
+function repairShip(){
+  if(G.res.oil<30 || G.ship.hp>=G.ship.max) return;
+  G.res.oil-=30; G.ship.hp=Math.min(G.ship.max, G.ship.hp+60);
+  say("Oakum and copper — the Pequod's hull is mended (+60).");
+  renderActions();
+}
+function sharpen(){
+  if(G.res.oil<40 || G.sharpenDay) return;
+  G.res.oil-=40; G.sharpenDay=true;
+  say("Every lance and harpoon ground to a whisper's edge (+damage today).");
+  renderActions();
+}
+
+/* ------------------------------------------------ overlays --------- */
+function overlayHTML(html){ const o=$('overlay'); o.innerHTML=html; o.classList.remove('hidden'); }
+function hideOverlay(){ $('overlay').classList.add('hidden'); }
+
+const whaleSVG = `<svg width="54" height="20" viewBox="0 0 54 20" fill="none" aria-hidden="true">
+<path d="M2 13 C10 4, 30 2, 40 9 C44 12, 48 10, 52 4 C50 12, 46 15, 41 14 C33 19, 12 19, 2 13 Z" fill="#7a5c38"/>
+<circle cx="12" cy="10" r="1.3" fill="#e9dcc0"/></svg>`;
+
+function titlePage(){
+  overlayHTML(`
+  <div class="page">
+    <div class="eyebrow">A Whaling Strategy · After Herman Melville</div>
+    <h1>A H A B</h1>
+    <div class="whale-rule">${whaleSVG}</div>
+    <p class="quote">“It was the whiteness of the whale that above all things appalled me.”</p>
+    <p class="body">Gather timber, provisions and coin along the New Bedford wharves. Raise the Spouter-Inn and sign your harpooneers — Queequeg, Tashtego, Daggoo. Provision the Pequod, nail the doubloon to the mainmast, and put to sea. Hunt sperm whales for oil. Then, over three days, settle accounts with the White Whale.</p>
+    <ul class="objectives">
+      <li>Tap a tree, rack, or crate — the nearest idle sailor works it</li>
+      <li>Tap a sailor first to command that one in particular</li>
+      <li>Buttons below the map raise buildings and sign crew</li>
+    </ul>
+    <div class="btnrow"><button id="btnStart">Ship Aboard</button></div>
+    <div class="small-note">Six chapters, drawn from the book. The ending, for once, is yours to write.</div>
+  </div>`);
+  $('btnStart').onclick = ()=>openChapter(1);
+}
+
+function openChapter(n){
+  G.chapter = n;
+  const c = CHAPTERS[n];
+  overlayHTML(`
+  <div class="page">
+    <div class="eyebrow">${c.n}</div>
+    <h2>${c.t}</h2>
+    <div class="whale-rule">${whaleSVG}</div>
+    <p class="quote">${c.q}<span class="att">— Moby-Dick, 1851</span></p>
+    <ul class="objectives">${c.obj.map(o=>`<li>${o}</li>`).join('')}</ul>
+    <div class="btnrow"><button id="btnGo">${n===1?'Begin':'Continue'}</button></div>
+  </div>`);
+  $('btnGo').onclick = ()=>{
+    hideOverlay();
+    if(n===1){ setupLand(); G.scene='land'; say("New Bedford, a cold Saturday night in December."); }
+    if(n===5){ /* already at sea */ }
+    if(n===6){ startDay(1); }
+    updateHUD(); renderActions();
+  };
+  if(n===5){ $('btnGo').onclick = ()=>{ hideOverlay(); setupSea(); updateHUD(); renderActions(); }; }
+}
+
+function ceremonyPage(){
+  overlayHTML(`
+  <div class="page">
+    <div class="eyebrow">The Quarter-Deck</div>
+    <h2>THE DOUBLOON</h2>
+    <div class="whale-rule">${whaleSVG}</div>
+    <p class="body">Ahab holds up a broad bright coin — a sixteen-dollar gold piece of Ecuador — and nails it to the mainmast with a top-maul. “Whosoever of ye raises me that white-headed whale, he shall have this gold ounce!” The harpooneers cross their lances; grog goes round in the pewter. “Death to Moby Dick! God hunt us all, if we do not hunt Moby Dick to his death!”</p>
+    <div class="btnrow"><button id="btnSail">Set Sail</button></div>
+  </div>`);
+  $('btnSail').onclick = ()=>{ hideOverlay(); openChapter(5); };
+}
+
+function interludePage(){
+  const nd = G.day+1;
+  overlayHTML(`
+  <div class="page">
+    <div class="eyebrow">Night between the days</div>
+    <h2>HE SOUNDS, AND IS GONE</h2>
+    <div class="whale-rule">${whaleSVG}</div>
+    <p class="quote">“The hated whale, wounded, ran off with the line — but he will rise again with the sun.”</p>
+    <p class="body">The Pequod carries lanterns through the dark, following the white wake. The carpenter works by candle. Spend your oil while you may — Day ${['','one','two','three'][nd]} of the chase will be crueller than the last.</p>
+    <div class="btnrow">
+      <button id="iBoats">Mend boats — 25 oil</button>
+      <button id="iShip">Mend hull — 30 oil</button>
+      <button id="iSharp">Grind irons — 40 oil</button>
+    </div>
+    <div class="btnrow" style="margin-top:14px"><button id="iGo">Dawn — Day ${nd}</button></div>
+    <div class="small-note" id="iStat"></div>
+  </div>`);
+  const stat = ()=>{$('iStat').textContent =
+    `Oil ${Math.floor(G.res.oil)} · Hull ${Math.max(0,Math.round(G.ship.hp))}/${G.ship.max} · Boats afloat ${G.sea.boats.filter(b=>b.state!=='sunk').length}/3`;};
+  stat();
+  $('iBoats').onclick=()=>{repairBoats();stat();};
+  $('iShip').onclick=()=>{repairShip();stat();};
+  $('iSharp').onclick=()=>{sharpen();stat();};
+  $('iGo').onclick=()=>{ hideOverlay(); startDay(G.day+1); renderActions(); };
+}
+
+function defeat(kind){
+  G.moby=null; G.interlude=true;
+  overlayHTML(`
+  <div class="page">
+    <div class="eyebrow">Epilogue</div>
+    <h2>“AND I ONLY AM ESCAPED ALONE TO TELL THEE”</h2>
+    <div class="whale-rule">${whaleSVG}</div>
+    <p class="quote">“…then all collapsed, and the great shroud of the sea rolled on as it rolled five thousand years ago.”</p>
+    <p class="body">${kind==='ship'
+      ? "The White Whale bursts his broad forehead against the Pequod's bow. The ship settles, the vortex takes her, and the sea closes over the mast — this is how the book ends. But your book need not."
+      : "Every boat is stove and every iron lost. Ahab clings to a shattered plank as the White Whale swims on, unconquered — as he does in the book. But your book need not end so."}</p>
+    <div class="btnrow"><button id="btnRetry">Turn Back the Page — refit and try Day ${G.day} again</button></div>
+  </div>`);
+  $('btnRetry').onclick = ()=>{
+    hideOverlay();
+    G.ship.hp = Math.max(G.ship.hp, 200); if(G.ship.hp<200) G.ship.hp=200;
+    G.res.oil += 40;
+    for(const b of G.sea.boats){ b.state='aboard'; b.x=b.home.x; b.y=b.home.y; if(b.hp<b.max*0.7)b.hp=b.max*0.7; }
+    startDay(G.day||1); renderActions();
+  };
+  return true;
+}
+
+function victory(){
+  G.moby=null; G.interlude=true;
+  overlayHTML(`
+  <div class="page">
+    <div class="eyebrow">Chapter the Last</div>
+    <h2>THE WHALE IS DEAD</h2>
+    <div class="whale-rule">${whaleSVG}</div>
+    <p class="quote">“Oh, lonely death on lonely life! Oh, now I feel my topmost greatness lies in my topmost grief.”</p>
+    <p class="body">On the third day the irons hold. The White Whale rolls fin out upon the reddened sea, and for the first time in three years Ahab is silent. Queequeg claims the doubloon and nails it above his hammock. In Melville's book the whale wins, the Pequod sinks, and only Ishmael survives to tell it — but in this telling, the ship comes home to Nantucket, low in the water with oil, her flag whole at the mainmast.</p>
+    <p class="body" style="text-align:center">Whales taken: ${G.sea.whalesKilled + 1} &nbsp;·&nbsp; Hull remaining: ${Math.max(0,Math.round(G.ship.hp))} &nbsp;·&nbsp; Boats afloat: ${G.sea.boats.filter(b=>b.state!=='sunk').length}/3</p>
+    <div class="btnrow"><button id="btnAgain">Sail Again</button></div>
+  </div>`);
+  $('btnAgain').onclick = ()=>location.reload();
+}
+
+/* ------------------------------------------------ HUD / actions ---- */
+function updateHUD(){
+  $('rWood').textContent = Math.floor(G.res.wood);
+  $('rFood').textContent = Math.floor(G.res.food);
+  $('rGold').textContent = Math.floor(G.res.gold);
+  $('rOil').textContent  = Math.floor(G.res.oil);
+  $('rCrew').textContent = G.units.length || (G.scene!=='land' ? 3+harpCount() : 0);
+  const obj = {
+    1:`Gather 100 wood (${Math.floor(G.res.wood)}) & 60 provisions (${Math.floor(G.res.food)})`,
+    2:`${G.built.inn?'✓ Inn':'Raise the Spouter-Inn'} · ${G.crew.queequeg?'✓ Queequeg':'Sign Queequeg'}`,
+    3:`${G.built.shipyard?'✓ Shipyard':'Raise the Shipyard'} · Provision: 🪵${G.provision.wood}/${G.provReq.wood} 🍖${G.provision.food}/${G.provReq.food} 🟡${G.provision.gold}/${G.provReq.gold}`,
+    4:`Sign all harpooneers (${harpCount()}/3) · Forge harpoons (${G.harpoonLvl}/1+) · then set sail`,
+    5:`Sperm whales taken: ${G.sea.whalesKilled}/3 — tap a whale to lower boats`,
+    6:G.moby?`DAY ${G.day} OF 3 — the White Whale: ${Math.max(0,Math.round(G.moby.hp))} · Pequod hull: ${Math.max(0,Math.round(G.ship.hp))}`:'',
+  }[G.chapter] || '';
+  $('objective').textContent = obj;
+}
+function harpCount(){ return ['queequeg','tashtego','daggoo'].filter(k=>G.crew[k]).length; }
+
+function btn(label, sub, fn, opts={}){
+  const b=document.createElement('button');
+  b.className='act'+(opts.red?' red':'');
+  b.innerHTML = label + (sub?`<small>${sub}</small>`:'');
+  b.disabled = !!opts.disabled;
+  b.onclick = fn;
+  return b;
+}
+function renderActions(){
+  const bar=$('actionbar'); bar.innerHTML='';
+  if(G.scene==='land'){
+    if(G.chapter>=2 && !G.built.inn)
+      bar.append(btn('Raise Spouter-Inn', costStr(G.sites.inn.cost), ()=>build('inn'), {disabled:!canAfford(G.sites.inn.cost)}));
+    if(G.built.inn){
+      if(!G.crew.queequeg) bar.append(btn('Sign Queequeg','40🟡 30🍖',()=>hireHarpooneer('queequeg'),{disabled:!canAfford({gold:40,food:30})}));
+      if(G.chapter>=4){
+        if(!G.crew.tashtego) bar.append(btn('Sign Tashtego','35🟡 25🍖',()=>hireHarpooneer('tashtego'),{disabled:!canAfford({gold:35,food:25})}));
+        if(!G.crew.daggoo)   bar.append(btn('Sign Daggoo','35🟡 25🍖',()=>hireHarpooneer('daggoo'),{disabled:!canAfford({gold:35,food:25})}));
+      }
+      if(sailors().length<G.sailorCap)
+        bar.append(btn(`Hire sailor (${sailors().length}/${G.sailorCap})`,'25🍖',hireSailor,{disabled:!canAfford({food:25})}));
+    }
+    if(G.chapter>=3 && !G.built.shipyard)
+      bar.append(btn('Raise Shipyard', costStr(G.sites.shipyard.cost), ()=>build('shipyard'), {disabled:!canAfford(G.sites.shipyard.cost)}));
+    if(G.built.shipyard && !provDone())
+      bar.append(btn('Load provisions aboard','moves stockpile → Pequod',loadProvisions));
+    if(G.chapter>=4){
+      if(!G.built.smithy)
+        bar.append(btn('Raise Smithy', costStr(G.sites.smithy.cost), ()=>build('smithy'), {disabled:!canAfford(G.sites.smithy.cost)}));
+      if(G.built.smithy && G.harpoonLvl<2)
+        bar.append(btn(G.harpoonLvl===0?'Forge harpoons':'Temper Ahab\u2019s iron', G.harpoonLvl===0?'30🟡':'50🟡', forge,
+          {disabled:!canAfford(G.harpoonLvl===0?{gold:30}:{gold:50})}));
+      if(!G.built.chapel)
+        bar.append(btn('Raise Chapel', costStr(G.sites.chapel.cost)+' · optional', ()=>build('chapel'), {disabled:!canAfford(G.sites.chapel.cost)}));
+      if(G.built.chapel && !G.sermonHeard)
+        bar.append(btn('Hear the Sermon','+25% boat hull',hearSermon));
+      bar.append(btn('⚓ Nail the Doubloon — Set Sail', ch4Ready()?'the crew is ready':'needs 3 harpooneers, harpoons, provisions',
+        ()=>{ if(ch4Ready()) ceremonyPage(); }, {red:true, disabled:!ch4Ready()}));
+    }
+    const hint=document.createElement('div'); hint.id='hint';
+    hint.textContent='Tap resources to send sailors. Tap a sailor to pick one; tap ground to walk.';
+    bar.append(hint);
+  } else if(G.scene==='sea'){
+    const anyOut = G.sea.boats.some(b=>b.state==='rowing'||b.state==='fighting');
+    const target = G.moby || G.sea.whale;
+    bar.append(btn('Lower away!','boats to the whale',lowerBoats,{disabled:!target||G.interlude, red:true}));
+    bar.append(btn('Recall boats','',recallBoats,{disabled:!anyOut}));
+    bar.append(btn('Mend boats','25🛢️',repairBoats,{disabled:G.res.oil<25}));
+    bar.append(btn('Mend hull','30🛢️ → +60',repairShip,{disabled:G.res.oil<30||G.ship.hp>=G.ship.max}));
+    if(G.moby) bar.append(btn('Grind irons','40🛢️ · +dmg today',sharpen,{disabled:G.res.oil<40||G.sharpenDay}));
+    const hint=document.createElement('div'); hint.id='hint';
+    hint.textContent = G.moby? 'He rams the ship while you fight — watch the hull, mend with oil.'
+                             : 'Tap a whale (or Lower away!) to attack. Kills yield oil.';
+    bar.append(hint);
+  }
+}
+
+/* ------------------------------------------------ input ------------ */
+cv.addEventListener('pointerdown', e=>{
+  const r=cv.getBoundingClientRect();
+  const x=((e.clientX-r.left)*devicePixelRatio - offX)/scale;
+  const y=((e.clientY-r.top)*devicePixelRatio - offY)/scale;
+  if(G.scene==='land') landTap(x,y);
+  else if(G.scene==='sea') seaTap(x,y);
+});
+function landTap(x,y){
+  const p={x,y};
+  // unit?
+  const u = G.units.find(u=>dist(u,p)<18);
+  if(u){ G.selected = (G.selected===u)? null : u; refreshSel(); return; }
+  // resource?
+  const n = G.nodes.find(n=>dist(n,p)<30);
+  if(n){ assignGather(n); refreshSel(); return; }
+  // move selected
+  if(G.selected){ G.selected.task=null; G.selected.tx=x; G.selected.ty=y; }
+}
+function seaTap(x,y){
+  const p={x,y};
+  const t = G.moby || G.sea.whale;
+  if(t && dist(t,p)<70){ lowerBoats(); return; }
+}
+function refreshSel(){
+  $('selinfo').textContent = G.selected
+    ? `Selected: ${G.selected.name}${G.selected.type==='harpooneer'?' — harpooneer':''}`
+    : '';
+}
+
+/* ------------------------------------------------ drawing ---------- */
+function draw(){
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.fillStyle='#08121a'; ctx.fillRect(0,0,cv.width,cv.height);
+  ctx.setTransform(scale,0,0,scale,offX,offY);
+  if(G.scene==='land') drawLand();
+  else if(G.scene==='sea') drawSea();
+}
+
+function drawLand(){
+  // sky — a December dusk
+  let g=ctx.createLinearGradient(0,0,0,H*0.55);
+  g.addColorStop(0,'#1a2734'); g.addColorStop(.7,'#3d3a3a'); g.addColorStop(1,'#6e5a49');
+  ctx.fillStyle=g; ctx.fillRect(0,0,W,H*0.55);
+  // moon
+  ctx.fillStyle='rgba(240,235,215,.85)'; ctx.beginPath(); ctx.arc(860,70,22,0,7); ctx.fill();
+  ctx.fillStyle='#1a2734'; ctx.beginPath(); ctx.arc(852,63,19,0,7); ctx.fill();
+  // ground — cobbled town
+  g=ctx.createLinearGradient(0,H*0.35,0,H);
+  g.addColorStop(0,'#4a4238'); g.addColorStop(1,'#2c2620');
+  ctx.fillStyle=g; ctx.fillRect(0,H*0.35,W,H*0.65);
+  // harbor water strip
+  g=ctx.createLinearGradient(0,H-150,0,H);
+  g.addColorStop(0,'#16303f'); g.addColorStop(1,'#0d1b24');
+  ctx.fillStyle=g; ctx.fillRect(0,H-150,W,150);
+  ctx.fillStyle='rgba(233,220,192,.06)';
+  for(let i=0;i<7;i++){ const yy=H-140+i*20; ctx.fillRect(((G.t*14)+(i*137))%(W+60)-30, yy, 46,2); }
+  // wharf planks
+  ctx.fillStyle='#3a2a19'; ctx.fillRect(0,H-158,W,14);
+  ctx.strokeStyle='rgba(0,0,0,.35)';
+  for(let x=0;x<W;x+=34){ ctx.beginPath(); ctx.moveTo(x,H-158); ctx.lineTo(x,H-144); ctx.stroke(); }
+
+  // Pequod at anchor
+  drawPequod(790, H-108, 0.9, provDone());
+
+  // stockpile (wharf stores)
+  ctx.save(); ctx.translate(G.stock.x, G.stock.y);
+  ctx.fillStyle='#57431f';
+  for(const [bx,by] of [[-24,0],[0,0],[-12,-14]]){ drawBarrel(bx,by); }
+  label('Wharf stores', 0, 30);
+  ctx.restore();
+
+  // resource nodes
+  for(const n of G.nodes){
+    ctx.save(); ctx.translate(n.x,n.y);
+    if(n.kind==='wood') drawTree();
+    else if(n.kind==='food') drawFishRack();
+    else drawGoldCrates();
+    ctx.restore();
+  }
+  // build sites / buildings
+  for(const [k,s] of Object.entries(G.sites)){
+    const visible = G.built[k] ||
+      (k==='inn'&&G.chapter>=2)||(k==='shipyard'&&G.chapter>=3)||((k==='smithy'||k==='chapel')&&G.chapter>=4);
+    if(!visible) continue;
+    ctx.save(); ctx.translate(s.x,s.y);
+    if(G.built[k]) drawBuilding(k,s);
+    else{
+      ctx.strokeStyle='rgba(201,162,75,.55)'; ctx.setLineDash([6,5]);
+      ctx.strokeRect(-s.w/2,-s.h/2,s.w,s.h); ctx.setLineDash([]);
+      label(s.name+' — site', 0, s.h/2+14, 'rgba(201,162,75,.8)');
+    }
+    ctx.restore();
+  }
+  // units
+  for(const u of G.units) drawUnit(u);
+}
+
+function label(text,x,y,color){
+  ctx.font='11px Palatino Linotype, Georgia, serif';
+  ctx.textAlign='center';
+  ctx.fillStyle=color||'rgba(233,220,192,.75)';
+  ctx.fillText(text,x,y);
+}
+function drawTree(){
+  ctx.fillStyle='#3a2a19'; ctx.fillRect(-4,6,8,20);
+  ctx.fillStyle='#2f4a2c';
+  for(const [dy,r] of [[2,20],[-12,16],[-24,11]]){ ctx.beginPath(); ctx.arc(0,dy,r,0,7); ctx.fill(); }
+  ctx.fillStyle='#243a22'; ctx.beginPath(); ctx.arc(6,0,10,0,7); ctx.fill();
+}
+function drawFishRack(){
+  ctx.strokeStyle='#7a5c38'; ctx.lineWidth=3;
+  ctx.beginPath(); ctx.moveTo(-22,14); ctx.lineTo(-22,-12); ctx.moveTo(22,14); ctx.lineTo(22,-12);
+  ctx.moveTo(-24,-10); ctx.lineTo(24,-10); ctx.stroke();
+  ctx.fillStyle='#b8b0a0';
+  for(let i=-16;i<=16;i+=8){ ctx.beginPath(); ctx.ellipse(i,-2,3,8,0,0,7); ctx.fill(); }
+  ctx.lineWidth=1;
+}
+function drawGoldCrates(){
+  ctx.fillStyle='#57431f'; ctx.fillRect(-18,-8,22,18); ctx.fillRect(0,-2,20,12);
+  ctx.strokeStyle='#2c2013'; ctx.strokeRect(-18,-8,22,18); ctx.strokeRect(0,-2,20,12);
+  ctx.fillStyle='#c9a24b';
+  ctx.beginPath(); ctx.arc(-7,-12,4,0,7); ctx.fill();
+  ctx.beginPath(); ctx.arc(4,-8,3.5,0,7); ctx.fill();
+}
+function drawBarrel(x,y){
+  ctx.save(); ctx.translate(x,y);
+  ctx.fillStyle='#6b4f26'; ctx.beginPath(); ctx.ellipse(0,0,10,13,0,0,7); ctx.fill();
+  ctx.strokeStyle='#3a2a19'; ctx.beginPath(); ctx.moveTo(-10,-4); ctx.lineTo(10,-4); ctx.moveTo(-10,4); ctx.lineTo(10,4); ctx.stroke();
+  ctx.restore();
+}
+function drawBuilding(key,s){
+  const w=s.w, h=s.h;
+  ctx.fillStyle = key==='chapel' ? '#5c5648' : '#4a3722';
+  ctx.fillRect(-w/2,-h/2+12,w,h-12);
+  // roof
+  ctx.fillStyle='#2c2013';
+  ctx.beginPath(); ctx.moveTo(-w/2-6,-h/2+12); ctx.lineTo(0,-h/2-14); ctx.lineTo(w/2+6,-h/2+12); ctx.closePath(); ctx.fill();
+  // door + window glow
+  ctx.fillStyle='#241708'; ctx.fillRect(-9,h/2-24,18,24);
+  ctx.fillStyle='rgba(240,200,110,.85)';
+  ctx.fillRect(-w/2+12,-4,12,12); ctx.fillRect(w/2-24,-4,12,12);
+  if(key==='chapel'){ // steeple
+    ctx.fillStyle='#5c5648'; ctx.fillRect(-6,-h/2-34,12,22);
+    ctx.fillStyle='#2c2013'; ctx.beginPath(); ctx.moveTo(-9,-h/2-34); ctx.lineTo(0,-h/2-48); ctx.lineTo(9,-h/2-34); ctx.closePath(); ctx.fill();
+  }
+  if(key==='smithy'){ // chimney smoke
+    ctx.fillStyle='#2c2013'; ctx.fillRect(w/2-20,-h/2-8,10,16);
+    if(!reduceMotion){ ctx.fillStyle='rgba(180,180,180,.25)';
+      for(let i=0;i<3;i++){ ctx.beginPath(); ctx.arc(w/2-15+Math.sin(G.t*2+i)*3, -h/2-16-i*10, 4+i*2,0,7); ctx.fill(); } }
+  }
+  if(key==='inn'){ // swinging sign
+    ctx.strokeStyle='#7a5c38'; ctx.beginPath(); ctx.moveTo(w/2+2,-h/2+18); ctx.lineTo(w/2+16,-h/2+18); ctx.stroke();
+    ctx.fillStyle='#c9a24b'; ctx.fillRect(w/2+8,-h/2+18,16,12);
+  }
+  label(s.name,0,h/2+14,'rgba(233,220,192,.85)');
+}
+function drawUnit(u){
+  ctx.save(); ctx.translate(u.x, u.y + Math.sin(G.t*4+u.bob)*(reduceMotion?0:1));
+  if(G.selected===u){ ctx.strokeStyle='#c9a24b'; ctx.beginPath(); ctx.arc(0,4,14,0,7); ctx.stroke(); }
+  // body
+  ctx.fillStyle = u.type==='harpooneer' ? '#8e2a1e' : '#33506b';
+  ctx.beginPath(); ctx.ellipse(0,4,7,10,0,0,7); ctx.fill();
+  // head
+  ctx.fillStyle='#d9b48a'; ctx.beginPath(); ctx.arc(0,-8,5.5,0,7); ctx.fill();
+  // hat
+  ctx.fillStyle='#241708'; ctx.fillRect(-6,-13,12,3); ctx.fillRect(-4,-18,8,6);
+  // harpoon
+  if(u.type==='harpooneer'){
+    ctx.strokeStyle='#b8b0a0'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(8,10); ctx.lineTo(14,-16); ctx.stroke();
+    ctx.lineWidth=1;
+    ctx.fillStyle='#b8b0a0'; ctx.beginPath(); ctx.moveTo(14,-16); ctx.lineTo(11,-11); ctx.lineTo(17,-11); ctx.closePath(); ctx.fill();
+  }
+  // carrying
+  if(u.carry>0){ ctx.fillStyle='#6b4f26'; ctx.beginPath(); ctx.ellipse(-9,2,4,6,0,0,7); ctx.fill(); }
+  ctx.restore();
+}
+function drawPequod(x,y,s,laden){
+  ctx.save(); ctx.translate(x,y); ctx.scale(s,s);
+  const bobY = reduceMotion?0:Math.sin(G.t*1.2)*2;
+  ctx.translate(0,bobY); ctx.rotate(reduceMotion?0:Math.sin(G.t*0.9)*0.015);
+  // hull
+  ctx.fillStyle='#241708';
+  ctx.beginPath();
+  ctx.moveTo(-90,0); ctx.quadraticCurveTo(-96,22,-70,26);
+  ctx.lineTo(70,26); ctx.quadraticCurveTo(100,20,96,-6);
+  ctx.lineTo(-90,0); ctx.closePath(); ctx.fill();
+  ctx.fillStyle= laden?'#c9a24b':'#57431f'; ctx.fillRect(-88,2,176,4);
+  // masts + spars
+  ctx.strokeStyle='#3a2a19'; ctx.lineWidth=4;
+  for(const mx of [-45,5,55]){ ctx.beginPath(); ctx.moveTo(mx,0); ctx.lineTo(mx,-92); ctx.stroke(); }
+  ctx.lineWidth=2;
+  for(const mx of [-45,5,55]) for(const my of [-84,-58,-32]){
+    ctx.beginPath(); ctx.moveTo(mx-24,my); ctx.lineTo(mx+24,my); ctx.stroke();
+  }
+  // furled sails
+  ctx.fillStyle='rgba(233,220,192,.85)';
+  for(const mx of [-45,5,55]) for(const my of [-84,-58,-32]) ctx.fillRect(mx-22,my,44,6);
+  // the doubloon at the mainmast
+  if(G.chapter>=5 || laden){
+    ctx.fillStyle='#c9a24b'; ctx.beginPath(); ctx.arc(5,-46,4,0,7); ctx.fill();
+  }
+  ctx.lineWidth=1; ctx.restore();
+}
+
+function drawSea(){
+  let g=ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,'#20323f'); g.addColorStop(.25,'#16303f'); g.addColorStop(1,'#0b1620');
+  ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+  // horizon light
+  ctx.fillStyle= G.moby ? 'rgba(142,42,30,.14)' : 'rgba(233,220,192,.07)';
+  ctx.fillRect(0,0,W,60);
+  // waves
+  ctx.fillStyle='rgba(233,220,192,.08)';
+  for(const w of G.sea.waves){
+    ctx.fillRect(w.x-12, w.y + Math.sin(G.t*2+w.p)*(reduceMotion?0:2), 24, 2);
+  }
+  drawPequod(150, 330, 1.05, true);
+  // hull bar
+  drawBar(66, 380, 168, G.ship.hp/G.ship.max, '#c9a24b', 'Pequod');
+
+  // boats
+  for(const b of G.sea.boats){
+    if(b.state==='sunk') continue;
+    if(b.state==='aboard'){ continue; }
+    ctx.save(); ctx.translate(b.x, b.y + (reduceMotion?0:Math.sin(G.t*3+b.id)*2));
+    ctx.fillStyle='#57431f';
+    ctx.beginPath(); ctx.moveTo(-20,0); ctx.quadraticCurveTo(0,8,20,0); ctx.quadraticCurveTo(0,-6,-20,0); ctx.fill();
+    // tiny crew
+    ctx.fillStyle='#33506b';
+    for(const cx of [-10,-2,6]){ ctx.beginPath(); ctx.arc(cx,-4,3,0,7); ctx.fill(); }
+    ctx.fillStyle='#8e2a1e'; ctx.beginPath(); ctx.arc(13,-5,3.4,0,7); ctx.fill(); // harpooneer at bow
+    if(b.state==='fighting'){
+      ctx.strokeStyle='rgba(233,220,192,.7)';
+      ctx.beginPath(); ctx.moveTo(16,-5); ctx.lineTo(38,-2); ctx.stroke(); // taut line
+    }
+    ctx.restore();
+    drawBar(b.x-20, b.y+12, 40, b.hp/b.max, '#a8c4d8');
+  }
+
+  // ordinary whale
+  if(G.sea.whale) drawWhale(G.sea.whale, '#3b4a52', false);
+  // Moby Dick
+  if(G.moby) drawWhale(G.moby, '#e8e2d2', true);
+}
+function drawWhale(w, color, isMoby){
+  const submerged = isMoby && w.diveT>0;
+  ctx.save(); ctx.translate(w.x, w.y + (reduceMotion?0:Math.sin(G.t*1.5)*3));
+  ctx.globalAlpha = submerged? .25 : 1;
+  const s = isMoby? 1.5 : 1;
+  ctx.scale(s,s);
+  // body
+  ctx.fillStyle=color;
+  ctx.beginPath();
+  ctx.moveTo(-56,4);
+  ctx.quadraticCurveTo(-30,-26, 20,-18);
+  ctx.quadraticCurveTo(52,-12, 56,2);
+  ctx.quadraticCurveTo(30,16, -20,14);
+  ctx.quadraticCurveTo(-46,12, -56,4); ctx.closePath(); ctx.fill();
+  // flukes
+  ctx.beginPath(); ctx.moveTo(-52,6); ctx.lineTo(-76,-8); ctx.lineTo(-68,8); ctx.lineTo(-78,18); ctx.closePath(); ctx.fill();
+  // jaw + eye
+  ctx.fillStyle = isMoby? '#c9beab' : '#2c3940';
+  ctx.beginPath(); ctx.moveTo(56,2); ctx.quadraticCurveTo(34,12,10,12); ctx.quadraticCurveTo(34,16,56,6); ctx.closePath(); ctx.fill();
+  ctx.fillStyle='#0d1b24'; ctx.beginPath(); ctx.arc(34,-4,2.6,0,7); ctx.fill();
+  if(isMoby){ // the wrinkled brow, the crooked jaw, old irons
+    ctx.strokeStyle='rgba(60,50,40,.5)';
+    ctx.beginPath(); ctx.moveTo(40,-14); ctx.quadraticCurveTo(46,-8,44,-2); ctx.stroke();
+    ctx.strokeStyle='#3a2a19'; ctx.lineWidth=1.6;
+    ctx.beginPath(); ctx.moveTo(0,-16); ctx.lineTo(-6,-30); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-24,-10); ctx.lineTo(-32,-24); ctx.stroke();
+    ctx.lineWidth=1;
+  }
+  // spout
+  if(!submerged && !reduceMotion){
+    const sp = (Math.sin(w.spout*1.4)+1)/2;
+    if(sp>0.55){
+      ctx.strokeStyle='rgba(233,220,192,.6)'; ctx.lineWidth=2;
+      ctx.beginPath(); ctx.moveTo(42,-18);
+      ctx.quadraticCurveTo(40,-34-8*sp, 34,-40-10*sp);
+      ctx.moveTo(42,-18); ctx.quadraticCurveTo(46,-34-8*sp, 50,-38-10*sp);
+      ctx.stroke(); ctx.lineWidth=1;
+    }
+  }
+  ctx.restore(); ctx.globalAlpha=1;
+  const bw = isMoby? 150:90;
+  drawBar(w.x-bw/2, w.y - (isMoby?58:40), bw, Math.max(0,w.hp/w.max), isMoby? '#e8e2d2':'#7fa3b8', isMoby? 'MOBY DICK':null);
+}
+function drawBar(x,y,w,frac,color,txt){
+  ctx.fillStyle='rgba(0,0,0,.55)'; ctx.fillRect(x,y,w,6);
+  ctx.fillStyle=color; ctx.fillRect(x+1,y+1,(w-2)*clamp(frac,0,1),4);
+  if(txt){ label(txt, x+w/2, y-4, 'rgba(233,220,192,.85)'); }
+}
+
+/* ------------------------------------------------ main loop -------- */
+let last=performance.now();
+function loop(now){
+  const dt = Math.min(0.05,(now-last)/1000); last=now;
+  const running = $('overlay').classList.contains('hidden');
+  if(running){
+    G.t += dt;
+    if(G.scene==='land') updateLand(dt);
+    else if(G.scene==='sea' && !G.interlude) updateSea(dt);
+    updateHUD();
+  }
+  draw();
+  requestAnimationFrame(loop);
+}
+
+/* periodically refresh button disabled states on land */
+setInterval(()=>{ if((G.scene==='land'||G.scene==='sea') && $('overlay').classList.contains('hidden')) renderActions(); }, 900);
+
+fit(); titlePage(); updateHUD(); renderActions();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
